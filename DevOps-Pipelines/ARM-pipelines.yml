@@ -1,0 +1,80 @@
+trigger:
+  branches:
+    include:
+      - main
+      - master
+  paths:
+    exclude:
+      - README.md
+
+pool:
+  vmImage: "windows-latest"
+
+stages:
+  - stage: Test
+    jobs:
+      - job: TestJob
+        steps:
+          - checkout: self
+            clean: true
+            persistCredentials: true
+          - task: PowerShell@2
+            displayName: Install InvokeBuild module on the build agent
+            inputs:
+              targetType: "inline"
+              pwsh: true
+              script: |
+                if (-not (Get-Module -Name InvokeBuild -ListAvailable)) {
+                  Install-Module InvokeBuild -Force
+                }
+                Import-Module InvokeBuild
+
+          - task: PowerShell@2
+            displayName: Start checking ARM files for ARM-TTK
+            inputs:
+              targetType: "inline"
+              pwsh: true
+              failOnStderr: false
+              script: Invoke-Build -Task TestARMTTK -ModuleName $(module.Name)
+              workingDirectory: $(System.DefaultWorkingDirectory)
+
+          - task: PowerShell@2
+            displayName: Start checking ARM files for AzSKARMTemplateSecurity
+            condition: succeededOrFailed()
+            inputs:
+              targetType: "inline"
+              pwsh: true
+              failOnStderr: false
+              script: Invoke-Build -Task TestARMAZSK -ModuleName $(module.Name)
+              workingDirectory: $(System.DefaultWorkingDirectory)
+  
+          - task: PublishTestResults@2
+            displayName: Publish test results
+            condition: succeededOrFailed()
+            inputs:
+              testResultsFormat: "NUnit"
+              mergeTestResults: true
+              testResultsFiles: '$(System.DefaultWorkingDirectory)\Results\TEST-*.xml'
+              failTaskOnFailedTests: true
+
+          - task: PowerShell@2
+            name: 'CreateReadMe'
+            displayName: 'Create ReadMe File'
+            inputs:
+              filePath: '$(System.DefaultWorkingDirectory)\Scripts\CreateReadMe.ps1'
+              arguments: '-WorkingDir $(System.DefaultWorkingDirectory) -PipelineName $(Build.DefinitionName) -PipelineID $(System.DefinitionId) -DocTemplatePath Scripts\ReadMe.doc.ps1'
+              errorActionPreference: 'silentlyContinue'
+          
+  - stage: Publish
+    condition: succeeded()
+    jobs:
+      - job: PublishJob
+        steps:
+          - task: PublishPipelineArtifact@1
+            name: 'PublishPipelineArtifact'
+            displayName: 'Publish Pipeline Artifact'
+            inputs:
+              targetPath: '$(System.DefaultWorkingDirectory)'
+              artifact: 'ARMTemplates'
+              publishLocation: 'pipeline'
+

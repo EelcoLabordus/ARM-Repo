@@ -1,0 +1,9 @@
+{
+    "$schema": "https://aka.ms/azure-quickstart-templates-metadata-schema#",
+    "itemDisplayName": "CreateStorageAccount",
+    "type": "QuickStart",
+    "description": "Creates a storage account for storing the ARM templates.",
+    "summary": "Creates a storage account for storing the ARM templates.",
+    "githubUsername": "EelcoLabordus",
+    "dateUpdated": "09-02-2020"
+  }
